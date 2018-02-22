@@ -2,7 +2,7 @@
 # CUDA, MKL, and Intel Python for top performance on GPUs and CPUs.
 
 # Nvidia's pre-built Ubuntu image with CUDA
-FROM nvidia/cuda:9.1-cudnn7-devel-ubuntu16.04
+FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 
 # CUDA stubs to support use with vanilla docker when not using GPU functionality
 RUN cd /usr/local/cuda/lib64/stubs && \
@@ -66,6 +66,7 @@ ENV MXNET_ENGINE_TYPE NaiveEngine
 # Additional Sockeye Python dependencies
 RUN pip install \
     pyyaml \
+    tensorboard==1.0.0a6 \
     typing
 
 # This revision of Sockeye
