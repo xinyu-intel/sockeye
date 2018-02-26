@@ -1,6 +1,11 @@
 # Sockeye @ WNMT18
 
-This directory contains scripts and documentation for running Sockeye and other tools via nvidia-docker.  It is recommended that you **copy this directory outside of the sockeye directory** and use it as your base work directory.  Running everything inside of the sockeye code directory will interfere with Docker builds.
+This directory contains scripts and documentation for running a Sockeye pipeline for the 2018 Workshop on Neural Machine Translation shared task.  It is recommended that you **copy this directory outside of the sockeye directory** and use it as your base work directory.
+
+To check out the branch of Sockeye for this workshop, run:
+```
+git clone git@github.com:awslabs/sockeye.git -b wnmt18 sockeye-wnmt18
+```
 
 ## Environment
 
@@ -59,7 +64,9 @@ To build a Docker image containing Sockeye and other necessary software, run the
 
 This task uses pre-processed training data so the pipeline consists of only a few steps.  Again, it is recommended that you **copy this directory outside of the sockeye directory** and run experiments there.
 
-First, download the training data files:
+### Data
+
+This part only needs to be run once to set up training and test data.  First, download the training data files:
 ```
 ./download_data.sh
 ```
@@ -69,7 +76,19 @@ Next, learn a byte-pair encoding model and encode the data:
 ./bpe_encode_data.sh
 ```
 
-To use Sockeye's vocabulary selection capability, learn a `fast_align` lexical table and convert it to a tok-K lexicon file:
+Sockeye's vocabulary selection capability significantly speeds up decoding.  It depends on a `fast_align` lexical table that can be learned once and reused:
 ```
-./
+./fast_align.sh
 ```
+
+### Model Training
+
+This part runs every time Sockeye is modified in a way that requires retraining the translation model.  First, **make sure you have built a Sockeye image with your latest code**.  These scripts use the `sockeye:latest` Docker image to run commands.
+
+The training script uses Sockeye to learn a transformer model with effective settings taken from the paper [Sockeye: A Toolkit for Neural Machine Translation
+](https://arxiv.org/abs/1712.05690).  Copy and modify the script as needed if you run multiple experiments.
+```
+./train.sh
+```
+
+### Decoding

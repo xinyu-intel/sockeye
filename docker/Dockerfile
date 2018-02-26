@@ -18,8 +18,11 @@ ENV LC_ALL en_US.UTF-8
 
 # System packages
 RUN apt-get update && apt-get install -y \
+    cmake \
     cpio \
+    git \
     libgoogle-perftools-dev \
+    libsparsehash-dev \
     libunwind-dev \
     pkg-config \
     wget
@@ -61,13 +64,24 @@ RUN cd /opt && \
     make USE_BLAS=mkl USE_INTEL_PATH=/opt/intel USE_CUDA=1 USE_CUDA_PATH=/usr/local/cuda USE_CUDNN=1 -j $(grep -c "processor" /proc/cpuinfo)
 RUN cd /opt/${MXNET_VERSION}/python && \
     python3 setup.py build install
-ENV MXNET_ENGINE_TYPE NaiveEngine
 
 # Additional Sockeye Python dependencies
 RUN pip install \
     pyyaml \
     tensorboard==1.0.0a6 \
     typing
+
+# fast_align
+ENV FAST_ALIGN_VERSION 7c2bbca3d5d61ba4b0f634f098c4fcf63c1373e1
+RUN cd /opt && \
+    git clone https://github.com/clab/fast_align.git && \
+    cd fast_align && \
+    git checkout ${FAST_ALIGN_VERSION} && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    make -j
+ENV PATH ${PATH}:/opt/fast_align/build
 
 # This revision of Sockeye
 ARG REV

@@ -30,8 +30,11 @@ fi
 
 BUILD_ARGS="--build-arg MKL_VERSION=${MKL_VERSION} --build-arg PYTHON_VERSION=${PYTHON_VERSION} --build-arg REV=${REV}"
 docker build -t ${REPOSITORY}:${TAG} -f ${DOCKERFILE} ${BUILD_ARGS} .
+docker tag ${REPOSITORY}:${TAG} ${REPOSITORY}:latest
 
 if [[ $? == 0 ]]; then
     echo "Build successful.  Run Sockeye with:"
     echo "nvidia-docker run --rm ${REPOSITORY}:${TAG} python3 -m sockeye.train"
+    echo "or"
+    echo "nvidia-docker run --rm ${REPOSITORY}:latest python3 -m sockeye.train"
 fi
