@@ -18,6 +18,7 @@ import itertools
 import json
 import logging
 import os
+from collections import defaultdict
 from typing import Callable, Dict, Generator, List, NamedTuple, Optional, Tuple, Union, Set
 
 import mxnet as mx
@@ -41,11 +42,11 @@ class InferenceModel(model.SockeyeModel):
     (1) Encoder forward call: encode source sentence and return initial decoder states.
     (2) Decoder forward call: single decoder step: predict next word.
 
-    :param model_folder: Folder to load model from.
+    :param config: Configuration object holding details about the model.
+    :param params_fname: File with model parameters.
     :param context: MXNet context to bind modules to.
     :param beam_size: Beam size.
     :param batch_size: Batch size.
-    :param checkpoint: Checkpoint to load. If None, finds best parameters in model_folder.
     :param softmax_temperature: Optional parameter to control steepness of softmax distribution.
     :param max_output_length_num_stds: Number of standard deviations as safety margin for maximum output length.
     :param decoder_return_logit_inputs: Decoder returns inputs to logit computation instead of softmax over target
@@ -54,34 +55,23 @@ class InferenceModel(model.SockeyeModel):
     """
 
     def __init__(self,
-                 model_folder: str,
+                 config: model.ModelConfig,
+                 params_fname: str,
                  context: mx.context.Context,
                  beam_size: int,
                  batch_size: int,
-                 checkpoint: Optional[int] = None,
                  softmax_temperature: Optional[float] = None,
                  max_output_length_num_stds: int = C.DEFAULT_NUM_STD_MAX_OUTPUT_LENGTH,
                  decoder_return_logit_inputs: bool = False,
                  cache_output_layer_w_b: bool = False) -> None:
-        self.model_version = utils.load_version(os.path.join(model_folder, C.VERSION_NAME))
-        logger.info("Model version: %s", self.model_version)
-        utils.check_version(self.model_version)
-
-        config = model.SockeyeModel.load_config(os.path.join(model_folder, C.CONFIG_NAME))
         super().__init__(config)
-
-        self.fname_params = os.path.join(model_folder, C.PARAMS_NAME % checkpoint if checkpoint else C.PARAMS_BEST_NAME)
-
+        self.params_fname = params_fname
+        self.context = context
+        self.beam_size = beam_size
         utils.check_condition(beam_size < self.config.vocab_target_size,
                               'The beam size must be smaller than the target vocabulary size.')
-
-        self.beam_size = beam_size
-        self.softmax_temperature = softmax_temperature
         self.batch_size = batch_size
-        self.context = context
-
-        self._build_model_components()
-
+        self.softmax_temperature = softmax_temperature
         self.max_input_length, self.get_max_output_length = models_max_input_output_length([self],
                                                                                            max_output_length_num_stds)
 
@@ -93,8 +83,8 @@ class InferenceModel(model.SockeyeModel):
         self.decoder_return_logit_inputs = decoder_return_logit_inputs
 
         self.cache_output_layer_w_b = cache_output_layer_w_b
-        self.output_layer_w = None  # type: mx.nd.NDArray
-        self.output_layer_b = None  # type: mx.nd.NDArray
+        self.output_layer_w = None  # type: Optional[mx.nd.NDArray]
+        self.output_layer_b = None  # type: Optional[mx.nd.NDArray]
 
     @property
     def num_source_factors(self) -> int:
@@ -139,7 +129,7 @@ class InferenceModel(model.SockeyeModel):
         self.encoder_module.bind(data_shapes=max_encoder_data_shapes, for_training=False, grad_req="null")
         self.decoder_module.bind(data_shapes=max_decoder_data_shapes, for_training=False, grad_req="null")
 
-        self.load_params_from_file(self.fname_params)
+        self.load_params_from_file(self.params_fname)
         self.encoder_module.init_params(arg_params=self.params, aux_params=self.aux_params, allow_missing=False)
         self.decoder_module.init_params(arg_params=self.params, aux_params=self.aux_params, allow_missing=False)
 
@@ -397,12 +387,22 @@ def load_models(context: mx.context.Context,
         source_vocabs.append(model_source_vocabs)
         target_vocabs.append(vocab.vocab_from_json(os.path.join(model_folder, C.VOCAB_TRG_NAME)))
 
-        inference_model = InferenceModel(model_folder=model_folder,
+        model_version = utils.load_version(os.path.join(model_folder, C.VERSION_NAME))
+        logger.info("Model version: %s", model_version)
+        utils.check_version(model_version)
+        model_config = model.SockeyeModel.load_config(os.path.join(model_folder, C.CONFIG_NAME))
+
+        if checkpoint is None:
+            params_fname = os.path.join(model_folder, C.PARAMS_BEST_NAME)
+        else:
+            params_fname = os.path.join(model_folder, C.PARAMS_NAME % checkpoint)
+
+        inference_model = InferenceModel(config=model_config,
+                                         params_fname=params_fname,
                                          context=context,
                                          beam_size=beam_size,
                                          batch_size=batch_size,
                                          softmax_temperature=softmax_temperature,
-                                         checkpoint=checkpoint,
                                          decoder_return_logit_inputs=decoder_return_logit_inputs,
                                          cache_output_layer_w_b=cache_output_layer_w_b)
         utils.check_condition(inference_model.num_source_factors == len(model_source_vocabs),
@@ -530,6 +530,7 @@ def get_max_input_output_length(supported_max_seq_len_source: Optional[int],
     return max_input_len, get_max_output_length
 
 
+BeamHistory = Dict[str, List]
 Tokens = List[str]
 
 
@@ -542,6 +543,8 @@ class TranslatorInput:
     :param factors: Optional list of additional factor sequences.
     :param chunk_id: Chunk id. Defaults to -1.
     """
+
+    __slots__ = ('sentence_id', 'tokens', 'factors', 'chunk_id')
 
     def __init__(self,
                  sentence_id: int,
@@ -693,29 +696,52 @@ def make_input_from_multiple_strings(sentence_id: int, strings: List[str]) -> Tr
     return TranslatorInput(sentence_id=sentence_id, tokens=tokens, factors=factors)
 
 
-TranslatorOutput = NamedTuple('TranslatorOutput', [
-    ('id', int),
-    ('translation', str),
-    ('tokens', Tokens),
-    ('attention_matrix', np.ndarray),
-    ('score', float),
-])
-"""
-Output structure from Translator.
+class TranslatorOutput:
+    """
+    Output structure from Translator.
 
-:param id: Id of input sentence.
-:param translation: Translation string without sentence boundary tokens.
-:param tokens: List of translated tokens.
-:param attention_matrix: Attention matrix. Shape: (target_length, source_length).
-:param score: Negative log probability of generated translation.
-"""
+    :param id: Id of input sentence.
+    :param translation: Translation string without sentence boundary tokens.
+    :param tokens: List of translated tokens.
+    :param attention_matrix: Attention matrix. Shape: (target_length, source_length).
+    :param score: Negative log probability of generated translation.
+    :param beam_histories: List of beam histories. The list will contain more than one
+    history if it was split due to exceeding max_length.
+    """
+    __slots__ = ('id', 'translation', 'tokens', 'attention_matrix', 'score',
+                 'beam_histories')
+
+    def __init__(self,
+                 id: int,
+                 translation: str,
+                 tokens: List[str],
+                 attention_matrix: np.ndarray,
+                 score: float,
+                 beam_histories: Optional[List[BeamHistory]] = None) -> None:
+        self.id = id
+        self.translation = translation
+        self.tokens = tokens
+        self.attention_matrix = attention_matrix
+        self.score = score
+        self.beam_histories = beam_histories
+
 
 TokenIds = List[int]
-Translation = NamedTuple('Translation', [
-    ('target_ids', TokenIds),
-    ('attention_matrix', np.ndarray),
-    ('score', float)
-])
+
+
+class Translation:
+    __slots__ = ('target_ids', 'attention_matrix', 'score', 'beam_history')
+
+    def __init__(self,
+                 target_ids: TokenIds,
+                 attention_matrix: np.ndarray,
+                 score: float,
+                 beam_history: List[Optional[BeamHistory]] = None) -> None:
+        self.target_ids = target_ids
+        self.attention_matrix = attention_matrix
+        self.score = score
+        self.beam_history = beam_history
+
 
 
 def empty_translation() -> Translation:
@@ -801,6 +827,7 @@ def _concat_translations(translations: List[Translation], start_id: int, stop_id
     # Concatenation of all target ids without BOS and EOS
     target_ids = [start_id]
     attention_matrices = []
+    beam_histories = [] # type: List[BeamHistory]
     for idx, translation in enumerate(translations):
         assert translation.target_ids[0] == start_id
         if idx == len(translations) - 1:
@@ -813,6 +840,9 @@ def _concat_translations(translations: List[Translation], start_id: int, stop_id
             else:
                 target_ids.extend(translation.target_ids[1:])
                 attention_matrices.append(translation.attention_matrix[1:, :])
+        if translation.beam_history:
+            # Make a list of the individual beam histories
+            beam_histories.append(translation.beam_history[0])
 
     # Combine attention matrices:
     attention_shapes = [attention_matrix.shape for attention_matrix in attention_matrices]
@@ -831,7 +861,7 @@ def _concat_translations(translations: List[Translation], start_id: int, stop_id
     score = sum(translation.score * length_penalty(len(translation.target_ids))
                 for translation in translations)
     score = score / length_penalty(len(target_ids))
-    return Translation(target_ids, attention_matrix_combined, score)
+    return Translation(target_ids, attention_matrix_combined, score, beam_histories)
 
 
 class Translator:
@@ -847,6 +877,7 @@ class Translator:
     :param source_vocabs: Source vocabularies.
     :param target_vocab: Target vocabulary.
     :param restrict_lexicon: Top-k lexicon to use for target vocabulary restriction.
+    :param store_beam: If True, store the beam search history and return it in the TranslatorOutput.
     """
 
     def __init__(self,
@@ -857,13 +888,16 @@ class Translator:
                  models: List[InferenceModel],
                  source_vocabs: List[vocab.Vocab],
                  target_vocab: vocab.Vocab,
-                 restrict_lexicon: Optional[lexicon.TopKLexicon] = None) -> None:
+                 restrict_lexicon: Optional[lexicon.TopKLexicon] = None,
+                 store_beam: bool = False) -> None:
         self.context = context
+        self.smallest_k_func = utils.smallest_k if self.context == mx.cpu() else utils.smallest_k_mx
         self.length_penalty = length_penalty
         self.source_vocabs = source_vocabs
         self.vocab_target = target_vocab
         self.vocab_target_inv = vocab.reverse_vocab(self.vocab_target)
         self.restrict_lexicon = restrict_lexicon
+        self.store_beam = store_beam
         self.start_id = self.vocab_target[C.BOS_SYMBOL]
         assert C.PAD_ID == 0, "pad id should be 0"
         self.stop_ids = {self.vocab_target[C.EOS_SYMBOL], C.PAD_ID}  # type: Set[int]
@@ -1031,11 +1065,17 @@ class Translator:
             target_id not in self.stop_ids)
         attention_matrix = attention_matrix[:, :len(trans_input.tokens)]
 
+        if isinstance(translation.beam_history, list):
+            beam_histories = translation.beam_history
+        else:
+            beam_histories = [translation.beam_history]
+
         return TranslatorOutput(id=trans_input.sentence_id,
                                 translation=target_string,
                                 tokens=target_tokens,
                                 attention_matrix=attention_matrix,
-                                score=translation.score)
+                                score=translation.score,
+                                beam_histories=beam_histories)
 
     def _concat_translations(self, translations: List[Translation]) -> Translation:
         """
@@ -1131,7 +1171,7 @@ class Translator:
 
     def _beam_search(self,
                      source: mx.nd.NDArray,
-                     source_length: int) -> Tuple[mx.nd.NDArray, mx.nd.NDArray, mx.nd.NDArray, mx.nd.NDArray]:
+                     source_length: int) -> Tuple[mx.nd.NDArray, mx.nd.NDArray, mx.nd.NDArray, mx.nd.NDArray, Optional[List[BeamHistory]]]:
         """
         Translates multiple sentences using beam search.
 
@@ -1155,6 +1195,12 @@ class Translator:
         sequences = mx.nd.full((self.batch_size * self.beam_size, max_output_length), val=C.PAD_ID, ctx=self.context,
                                dtype='int32')
         sequences[:, 0] = self.start_id
+
+        # Beam history
+        if self.store_beam:
+            beam_histories = [defaultdict(list) for _ in range(self.batch_size)] # type: Optional[List[BeamHistory]]
+        else:
+            beam_histories = None
 
         lengths = mx.nd.ones((self.batch_size * self.beam_size, 1), ctx=self.context)
         finished = mx.nd.zeros((self.batch_size * self.beam_size,), ctx=self.context, dtype='int32')
@@ -1233,13 +1279,16 @@ class Translator:
 
             # (3) get beam_size winning hypotheses for each sentence block separately
             # TODO(fhieber): once mx.nd.topk is sped-up no numpy conversion necessary anymore.
-            scores = scores.asnumpy()  # convert to numpy once to minimize cross-device copying
+            if self.context == mx.cpu():
+                scores = scores.asnumpy()  # convert to numpy once to minimize cross-device copying
+
             for sent in range(self.batch_size):
                 rows = slice(sent * self.beam_size, (sent + 1) * self.beam_size)
                 sliced_scores = scores if t == 1 and self.batch_size == 1 else scores[rows]
                 # TODO we could save some tiny amount of time here by not running smallest_k for a finished sent
                 (best_hyp_indices[rows], best_word_indices[rows]), \
-                scores_accumulated[rows, 0] = utils.smallest_k(sliced_scores, self.beam_size, t == 1)
+                    scores_accumulated[rows, 0] = self.smallest_k_func(sliced_scores, self.beam_size, t == 1)
+
                 # offsetting since the returned smallest_k() indices were slice-relative
                 best_hyp_indices[rows] += rows.start
 
@@ -1260,22 +1309,44 @@ class Translator:
             attentions[:, t, :] = attention_scores
             lengths += mx.nd.cast(1 - mx.nd.expand_dims(finished, axis=1), dtype='float32')
 
-            # (6) determine which hypotheses in the beam are now finished
+
+            # (6) optionally save beam history
+            if self.store_beam:
+                unnormalized_scores = scores_accumulated * self.length_penalty(lengths -1)
+                for sent in range(self.batch_size):
+                    rows = slice(sent * self.beam_size, (sent + 1) * self.beam_size)
+
+                    best_word_indices_sent = best_word_indices[rows].asnumpy().tolist()
+                    # avoid adding columns for finished sentences
+                    if any(x for x in best_word_indices_sent if x != C.PAD_ID):
+                        beam_histories[sent]["predicted_ids"].append(best_word_indices_sent)
+                        beam_histories[sent]["predicted_tokens"].append([self.vocab_target_inv[x] for x in
+                                                                    best_word_indices_sent])
+                        # for later sentences in the matrix, shift from e.g. [5, 6, 7, 8, 6] to [0, 1, 3, 4, 1]
+                        shifted_parents = best_hyp_indices[rows] - (sent * self.beam_size)
+                        beam_histories[sent]["parent_ids"].append(shifted_parents.asnumpy().tolist())
+
+                        beam_histories[sent]["scores"].append(unnormalized_scores[rows].asnumpy().flatten().tolist())
+                        beam_histories[sent]["normalized_scores"].append(scores_accumulated[rows].asnumpy().flatten().tolist())
+
+
+            # (7) determine which hypotheses in the beam are now finished
             finished = ((best_word_indices == C.PAD_ID) + (best_word_indices == self.vocab_target[C.EOS_SYMBOL]))
             if mx.nd.sum(finished).asscalar() == self.batch_size * self.beam_size:  # all finished
                 break
 
-            # (7) update models' state with winning hypotheses (ascending)
+            # (8) update models' state with winning hypotheses (ascending)
             for ms in model_states:
                 ms.sort_state(best_hyp_indices)
 
-        return sequences, attentions, scores_accumulated, lengths
+        return sequences, attentions, scores_accumulated, lengths, beam_histories
 
     def _get_best_from_beam(self,
                             sequences: mx.nd.NDArray,
                             attention_lists: mx.nd.NDArray,
                             accumulated_scores: mx.nd.NDArray,
-                            lengths: mx.nd.NDArray) -> List[Translation]:
+                            lengths: mx.nd.NDArray,
+                            beam_histories: Optional[List[BeamHistory]]) -> List[Translation]:
         """
         Return the best (aka top) entry from the n-best list.
 
@@ -1298,5 +1369,9 @@ class Translator:
             # attention_matrix: (target_seq_len, source_seq_len)
             attention_matrix = np.stack(attention_lists[idx].asnumpy()[:length, :], axis=0)
             score = accumulated_scores[idx].asscalar()
-            result.append(Translation(sequence, attention_matrix, score))
+            if beam_histories is not None:
+                history = beam_histories[sent]
+                result.append(Translation(sequence, attention_matrix, score, [history]))
+            else:
+                result.append(Translation(sequence, attention_matrix, score))
         return result

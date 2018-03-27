@@ -216,7 +216,6 @@ OPT_STATES_BEST = "mx_optimizer_best.pkl"
 OPT_STATES_INITIAL = "mx_optimizer_initial.pkl"
 BUCKET_ITER_STATE_NAME = "bucket.pkl"
 RNG_STATE_NAME = "rng.pkl"
-MONITOR_STATE_NAME = "monitor.pkl"
 TRAINING_STATE_NAME = "training.pkl"
 SCHEDULER_STATE_NAME = "scheduler.pkl"
 TRAINING_STATE_PARAMS_NAME = "params"
@@ -308,13 +307,15 @@ OUTPUT_HANDLER_TRANSLATION_WITH_ALIGNMENT_MATRIX = "translation_with_alignment_m
 OUTPUT_HANDLER_BENCHMARK = "benchmark"
 OUTPUT_HANDLER_ALIGN_PLOT = "align_plot"
 OUTPUT_HANDLER_ALIGN_TEXT = "align_text"
+OUTPUT_HANDLER_BEAM_STORE = "beam_store"
 OUTPUT_HANDLERS = [OUTPUT_HANDLER_TRANSLATION,
                    OUTPUT_HANDLER_TRANSLATION_WITH_SCORE,
                    OUTPUT_HANDLER_TRANSLATION_WITH_ALIGNMENTS,
                    OUTPUT_HANDLER_TRANSLATION_WITH_ALIGNMENT_MATRIX,
                    OUTPUT_HANDLER_BENCHMARK,
                    OUTPUT_HANDLER_ALIGN_PLOT,
-                   OUTPUT_HANDLER_ALIGN_TEXT]
+                   OUTPUT_HANDLER_ALIGN_TEXT,
+                   OUTPUT_HANDLER_BEAM_STORE]
 
 # metrics
 ACCURACY = 'accuracy'
@@ -324,6 +325,7 @@ CHRF = 'chrf'
 BLEU_VAL = BLEU + "-val"
 CHRF_VAL = CHRF + "-val"
 AVG_TIME = "avg-sec-per-sent-val"
+DECODING_TIME = "decode-walltime-val"
 METRICS = [PERPLEXITY, ACCURACY, BLEU]
 METRIC_MAXIMIZE = {ACCURACY: True, BLEU: True, PERPLEXITY: False}
 METRIC_WORST = {ACCURACY: 0.0, BLEU: 0.0, PERPLEXITY: np.inf}

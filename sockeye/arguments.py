@@ -895,6 +895,11 @@ def add_training_args(params):
                               choices=[C.RNN_INIT_ORTHOGONAL, C.RNN_INIT_ORTHOGONAL_STACKED, C.RNN_INIT_DEFAULT],
                               help="Initialization method for RNN parameters. Default: %(default)s.")
 
+    train_params.add_argument('--fixed-param-names',
+                              default=[],
+                              nargs='*',
+                              help="Names of parameters to fix at training time. Default: %(default)s.")
+
     train_params.add_argument(C.TRAIN_ARGS_MONITOR_BLEU,
                               default=0,
                               type=int,
@@ -920,6 +925,11 @@ def add_training_args(params):
                               type=int,
                               default=-1,
                               help='Keep only the last n params files, use -1 to keep all files. Default: %(default)s')
+
+    train_params.add_argument('--dry-run',
+                              action='store_true',
+                              help="Do not perform any actual training, but print statistics about the model"
+                              " and mode of operation.")
 
 
 def add_train_cli_args(params):
@@ -1055,8 +1065,9 @@ def add_evaluate_args(params):
                              help="File with references.")
     eval_params.add_argument('--hypotheses', '-i',
                              type=file_or_stdin(),
-                             default=sys.stdin,
-                             help="File with hypotheses. If none will read from stdin. Default: %(default)s.")
+                             default=[sys.stdin],
+                             nargs='+',
+                             help="File(s) with hypotheses. If none will read from stdin. Default: %(default)s.")
     eval_params.add_argument('--metrics',
                              nargs='+',
                              default=[C.BLEU, C.CHRF],
@@ -1087,8 +1098,9 @@ def add_init_embedding_args(params):
                         help='List of input vocabularies as token-index dictionaries in .json format.')
     params.add_argument('--vocabularies-out', '-o', required=True, nargs='+',
                         help='List of output vocabularies as token-index dictionaries in .json format.')
-    params.add_argument('--names', '-n', required=True, nargs='+',
-                        help='List of Sockeye parameter names for (embedding) weights.')
+    params.add_argument('--names', '-n', nargs='+',
+                        help='List of Sockeye parameter names for (embedding) weights. Default: %(default)s.',
+                        default=[n + "weight" for n in [C.SOURCE_EMBEDDING_PREFIX, C.TARGET_EMBEDDING_PREFIX]])
     params.add_argument('--file', '-f', required=True,
                         help='File to write initialized parameters to.')
     params.add_argument('--encoding', '-c', type=str, default=C.VOCAB_ENCODING,
