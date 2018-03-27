@@ -2,8 +2,9 @@
 
 REV=$(git rev-parse --short HEAD)
 REPOSITORY="sockeye"
-TAG="cu9-mkl-1.1.0-${REV}"
-DOCKERFILE=$(pwd)"/docker/Dockerfile"
+TAG1="${REV}-cpu"
+TAG2="latest-cpu"
+DOCKERFILE=$(pwd)"/docker/Dockerfile.cpu"
 
 # Edit these as needed
 MKL_VERSION="l_mkl_2018.1.163"
@@ -29,12 +30,12 @@ if [ ! -e $(pwd)"/docker/${PYTHON_VERSION}.tgz" ]; then
 fi
 
 BUILD_ARGS="--build-arg MKL_VERSION=${MKL_VERSION} --build-arg PYTHON_VERSION=${PYTHON_VERSION} --build-arg REV=${REV}"
-docker build -t ${REPOSITORY}:${TAG} -f ${DOCKERFILE} ${BUILD_ARGS} .
-docker tag ${REPOSITORY}:${TAG} ${REPOSITORY}:latest
+docker build -t ${REPOSITORY}:${TAG1} -f ${DOCKERFILE} ${BUILD_ARGS} .
+docker tag ${REPOSITORY}:${TAG1} ${REPOSITORY}:${TAG2}
 
 if [[ $? == 0 ]]; then
     echo "Build successful.  Run Sockeye with:"
-    echo "nvidia-docker run --rm ${REPOSITORY}:${TAG} python3 -m sockeye.train"
+    echo "docker run --rm ${REPOSITORY}:${TAG1} python3 -m sockeye.train"
     echo "or"
-    echo "nvidia-docker run --rm ${REPOSITORY}:latest python3 -m sockeye.train"
+    echo "docker run --rm ${REPOSITORY}:${TAG2} python3 -m sockeye.train"
 fi

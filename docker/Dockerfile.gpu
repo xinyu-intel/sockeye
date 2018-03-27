@@ -1,5 +1,5 @@
 # This Dockerfile will build a nvidia-docker compatible Sockeye image that uses
-# CUDA, MKL, and Intel Python for top performance on GPUs and CPUs.
+# CUDA for top performance on GPUs.
 
 # Nvidia's pre-built Ubuntu image with CUDA
 FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
@@ -31,15 +31,15 @@ RUN apt-get update && apt-get install -y \
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib64
 
-# MKL
-ARG MKL_VERSION
-COPY docker/${MKL_VERSION}.tgz /opt/${MKL_VERSION}.tgz
-RUN cd /opt && \
-    tar xf ${MKL_VERSION}.tgz && \
-    cd ${MKL_VERSION} && \
-    sed -i -e "s/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g" silent.cfg && \
-    bash install.sh -s silent.cfg
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/opt/intel/compilers_and_libraries_2018.1.163/linux/compiler/lib/intel64_lin
+## MKL
+#ARG MKL_VERSION
+#COPY docker/${MKL_VERSION}.tgz /opt/${MKL_VERSION}.tgz
+#RUN cd /opt && \
+#    tar xf ${MKL_VERSION}.tgz && \
+#    cd ${MKL_VERSION} && \
+#    sed -i -e "s/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g" silent.cfg && \
+#    bash install.sh -s silent.cfg
+#ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/opt/intel/compilers_and_libraries_2018.1.163/linux/compiler/lib/intel64_lin
 
 # Intel Python3
 ARG PYTHON_VERSION
@@ -54,16 +54,19 @@ ENV PATH ${PATH}:/opt/intel/intelpython3/bin
 ENV PKG_CONFIG_PATH ${PKG_CONFIG_PATH}:/opt/intel/intelpython3/lib/pkgconfig
 ENV LD_LIBRARY_PATH $${LD_LIBRARY_PATH}:/opt/intel/intelpython3/lib
 
-# MXNet Python package with CUDA, CUDNN, and MKL
-ENV MXNET_VERSION apache-mxnet-src-1.1.0-incubating
-ENV MXNET_URL https://github.com/apache/incubator-mxnet/releases/download/1.1.0/apache-mxnet-src-1.1.0-incubating.tar.gz
-RUN cd /opt && \
-    wget ${MXNET_URL} && \
-    tar xf ${MXNET_VERSION}.tar.gz && \
-    cd ${MXNET_VERSION} && \
-    make USE_BLAS=mkl USE_INTEL_PATH=/opt/intel USE_CUDA=1 USE_CUDA_PATH=/usr/local/cuda USE_CUDNN=1 -j $(grep -c "processor" /proc/cpuinfo)
-RUN cd /opt/${MXNET_VERSION}/python && \
-    python3 setup.py build install
+## MXNet Python package with CUDA, CUDNN, and MKL
+#ENV MXNET_VERSION apache-mxnet-src-1.1.0-incubating
+#ENV MXNET_URL https://github.com/apache/incubator-mxnet/releases/download/1.1.0/apache-mxnet-src-1.1.0-incubating.tar.gz
+#RUN cd /opt && \
+#    wget ${MXNET_URL} && \
+#    tar xf ${MXNET_VERSION}.tar.gz && \
+#    cd ${MXNET_VERSION} && \
+#    make USE_BLAS=mkl USE_INTEL_PATH=/opt/intel USE_CUDA=1 USE_CUDA_PATH=/usr/local/cuda USE_CUDNN=1 -j $(grep -c "processor" /proc/cpuinfo)
+#RUN cd /opt/${MXNET_VERSION}/python && \
+#    python3 setup.py build install
+
+# MXNet Python package with CUDA
+RUN pip install mxnet-cu90==1.1.0
 
 # Additional Sockeye Python dependencies
 RUN pip install \
