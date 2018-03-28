@@ -27,19 +27,20 @@ ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib64
 
 # MKL
-ARG MKL_VERSION
-COPY docker/${MKL_VERSION}.tgz /opt/${MKL_VERSION}.tgz
+ENV MKL_VERSION l_mkl_2018.1.163
 RUN cd /opt && \
+    wget http://registrationcenter-download.intel.com/akdlm/irc_nas/tec/12414/${MKL_VERSION}.tgz && \
     tar xf ${MKL_VERSION}.tgz && \
     cd ${MKL_VERSION} && \
     sed -i -e "s/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g" silent.cfg && \
-    bash install.sh -s silent.cfg
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/opt/intel/compilers_and_libraries_2018.1.163/linux/compiler/lib/intel64_lin
+    bash install.sh -s silent.cfg && \
+    rm -rf /opt/${MKL_VERSION}.tgz /opt/${MKL_VERSION}
+ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/opt/intel/compilers_and_libraries_2018.2.199/linux/compiler/lib/intel64_lin
 
 # Intel Python3
-ARG PYTHON_VERSION
-COPY docker/${PYTHON_VERSION}.tgz /opt/${PYTHON_VERSION}.tgz
+ENV PYTHON_VERSION l_python3_pu_2018.1.023
 RUN cd /opt && \
+    wget http://registrationcenter-download.intel.com/akdlm/irc_nas/tec/12430/${PYTHON_VERSION}.tgz && \
     tar xf ${PYTHON_VERSION}.tgz && \
     cd ${PYTHON_VERSION} && \
     sed -i -e "s/ACCEPT_EULA=decline/ACCEPT_EULA=accept/g" silent.cfg && \
@@ -56,9 +57,10 @@ RUN cd /opt && \
     wget ${MXNET_URL} && \
     tar xf ${MXNET_VERSION}.tar.gz && \
     cd ${MXNET_VERSION} && \
-    make USE_BLAS=mkl USE_INTEL_PATH=/opt/intel -j $(grep -c "processor" /proc/cpuinfo)
-RUN cd /opt/${MXNET_VERSION}/python && \
-    python3 setup.py build install
+    make USE_BLAS=mkl USE_INTEL_PATH=/opt/intel -j $(grep -c "processor" /proc/cpuinfo) && \
+    cd python && \
+    python3 setup.py build install && \
+    rm -rf /opt/${MXNET_VERSION}.tar.gz /opt/${MXNET_VERSION}
 # Naive engine performs best on CPUs; default performs best on GPUs
 ENV MXNET_ENGINE_TYPE NaiveEngine
 
@@ -67,6 +69,14 @@ RUN pip install \
     pyyaml \
     tensorboard==1.0.0a6 \
     typing
+
+# subword-nmt (byte-pair encoding)
+ENV SUBWORD_VERSION 9a95f9f7400a3a891a9d8168186229a54347fc0b
+RUN cd /opt && \
+    git clone https://github.com/rsennrich/subword-nmt.git && \
+    cd subword-nmt && \
+    git checkout ${SUBWORD_VERSION}
+ENV PATH ${PATH}:/opt/subword-nmt
 
 # fast_align
 ENV FAST_ALIGN_VERSION 7c2bbca3d5d61ba4b0f634f098c4fcf63c1373e1
@@ -84,21 +94,7 @@ ENV PATH ${PATH}:/opt/fast_align/build
 ARG REV
 RUN mkdir -p /opt/sockeye/__sockeye_tmp_build_dir
 RUN echo "${REV}" > /opt/sockeye/rev
-COPY contrib/ /opt/sockeye/contrib/
-COPY docs/ /opt/sockeye/docs/
-COPY sockeye/ /opt/sockeye/sockeye/
-COPY test/ /opt/sockeye/test/
-COPY \
-    CHANGELOG.md \
-    LICENSE \
-    MANIFEST.in \
-    NOTICE \
-    README.md \
-    requirements.dev.txt \
-    requirements.txt \
-    setup.cfg \
-    setup.py \
-    /opt/sockeye/
+COPY ./ /opt/sockeye/
 RUN cd /opt/sockeye && \
     python3 setup.py bdist_wheel -d __sockeye_tmp_build_dir && \
     pip install __sockeye_tmp_build_dir/*.whl --no-deps

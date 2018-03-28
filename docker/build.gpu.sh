@@ -6,22 +6,12 @@ TAG1="${REV}-gpu"
 TAG2="latest-gpu"
 DOCKERFILE=$(pwd)"/docker/Dockerfile.gpu"
 
-# Edit these as needed
-PYTHON_VERSION="l_python3_pu_2018.1.023"
-
 if [ ! -e ${DOCKERFILE} ]; then
     echo "Run this from the sockeye root directory"
     exit 1
 fi
 
-if [ ! -e $(pwd)"/docker/${PYTHON_VERSION}.tgz" ]; then
-    echo "Download Intel Python (https://software.intel.com/en-us/distribution-for-python) to the docker directory, will look like:"
-    echo "docker/${PYTHON_VERSION}.tgz"
-    echo "Edit PYTHON_VERSION in this build script to match if needed."
-    exit 1
-fi
-
-BUILD_ARGS="--build-arg PYTHON_VERSION=${PYTHON_VERSION} --build-arg REV=${REV}"
+BUILD_ARGS="--build-arg REV=${REV}"
 docker build -t ${REPOSITORY}:${TAG1} -f ${DOCKERFILE} ${BUILD_ARGS} .
 docker tag ${REPOSITORY}:${TAG1} ${REPOSITORY}:${TAG2}
 

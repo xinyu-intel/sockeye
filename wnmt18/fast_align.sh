@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest"
+DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-cpu"
 
 paste data/train.en.bpe data/train.de.bpe |sed -e "s/\t/ ||| /g" >data/train.en-de.bpe
 
