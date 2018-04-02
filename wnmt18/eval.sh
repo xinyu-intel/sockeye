@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Change to match model name in train.sh:
-MODEL="model.baseline"
+MODEL="baseline"
 # Change for contrastive runs with the same model:
 RUN="default"
 
@@ -11,6 +11,8 @@ if [[ ${#} < 1 ]]; then
   exit 2
 fi
 
+mkdir -p results
+
 for DEVICE in ${@}; do
   # Choose optimal settings for CPU or GPU
   if [[ ${DEVICE} == "cpu" ]]; then
@@ -19,12 +21,14 @@ for DEVICE in ${@}; do
     BATCH_SIZE=1
     CHUNK_SIZE=1
     RESTRICT_ARGS="--restrict-lexicon=${MODEL}/top_k_lexicon"
-  elif [[ ${DEVICE} == "gpu" ]];
-    DOCKER_RUN="nvidia-docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
+  elif [[ ${DEVICE} == "gpu" ]]; then
+    DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
     DEVICE_ARGS=""
     BATCH_SIZE=32
     CHUNK_SIZE=1000
     RESTRICT_ARGS=""
+  else
+    continue
   fi
   # Decode both test sets
   for SET in newstest2014 newstest2015; do
@@ -43,13 +47,13 @@ for DEVICE in ${@}; do
         ${DEVICE_ARGS} \
         ${RESTRICT_ARGS} \
       |sed -u -r 's/@@( |$)//g' \
-      >${MODEL}/${SET}.${RUN}.${DEVICE} \
-      2>${MODEL}/${SET}.${RUN}.${DEVICE}.time
+      >results/${SET}.${MODEL}.${RUN}.${DEVICE} \
+      2>results/${SET}.${MODEL}.${RUN}.${DEVICE}.time
     # Evaluate
     ${DOCKER_RUN} python3 -m sockeye.evaluate \
-      --hypotheses ${MODEL}/${SET}.out.${DEVICE} \
-      --references data/${SET}.de \
-      --metrics bleu \
-      >${MODEL}/${SET}.${RUN}.${DEVICE}.bleu
+      --hypotheses=results/${SET}.${MODEL}.${RUN}.${DEVICE} \
+      --references=data/${SET}.de \
+      --metrics=bleu \
+      >results/${SET}.${MODEL}.${RUN}.${DEVICE}.bleu
   done
 done

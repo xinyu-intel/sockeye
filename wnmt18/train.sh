@@ -2,14 +2,14 @@
 
 # For contrastive training runs, copy and modify this script, including changing
 # the model name:
-MODEL="model.baseline"
+MODEL="baseline"
 
-# Change based on your environment, recommended: -1, -2, or -4
+# Change based on your environment, recommended: -2 or -4
 # Negative indicates "attempt to lock this many GPUs"
-NUM_GPUS="-1"
+NUM_GPUS="-4"
 
 # Run training on GPUs
-DOCKER_RUN="nvidia-docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
+DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
 
 # Run Sockeye training with settings similar to https://arxiv.org/abs/1712.05690
 ${DOCKER_RUN} python3 -m sockeye.train \
@@ -20,7 +20,7 @@ ${DOCKER_RUN} python3 -m sockeye.train \
   -o ${MODEL} \
   --seed=1 \
   --batch-type=word \
-  --batch-size=4096 \
+  --batch-size=8192 \
   --checkpoint-frequency=2000 \
   --device-ids=${NUM_GPUS} \
   --embed-dropout=0:0 \
@@ -52,7 +52,7 @@ ${DOCKER_RUN} python3 -m sockeye.train \
   --gradient-clipping-type=abs \
   --initial-learning-rate=0.0002 \
   --learning-rate-reduce-num-not-improved=8 \
-  --learning-rate-reduce-factor=0.7 \
+  --learning-rate-reduce-factor=0.9 \
   --learning-rate-scheduler-type=plateau-reduce \
   --learning-rate-warmup=0 \
   --learning-rate-decay-optimizer-states-reset=best \
@@ -68,8 +68,8 @@ ${DOCKER_RUN} python3 -m sockeye.train \
 cp ${MODEL}/params.best ${MODEL}/params.single.best
 ${DOCKER_RUN} python3 -m sockeye.average \
   -n 8 \
-  --output ${MODEL}/params.best \
-  --strategy best \
+  --output=${MODEL}/params.best \
+  --strategy=best \
   ${MODEL}
 
 # Generate Top-K lexicon for vocabulary selection
