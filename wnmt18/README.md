@@ -102,11 +102,28 @@ Sockeye's vocabulary selection capability significantly speeds up decoding.  It 
 
 This part runs every time Sockeye is modified in a way that requires retraining the translation model.  First, **make sure you have built a Sockeye image with your latest code**.  These scripts use the `sockeye:latest-gpu` Docker image to run commands.
 
-The training script uses Sockeye to learn a transformer model with effective settings taken from the paper [Sockeye: A Toolkit for Neural Machine Translation
-](https://arxiv.org/abs/1712.05690).  **Copy and modify the script as needed to run multiple experiments.**
+The training script uses Sockeye to learn a transformer model with settings similar to those in the paper [Sockeye: A Toolkit for Neural Machine Translation
+](https://arxiv.org/abs/1712.05690).  This represents a system with near state-of-the-art quality and some basic speed optimizations.  **Copy and modify the script as needed to run multiple experiments with different settings.**
 
 ```
 ../sockeye-wnmt18/wnmt18/train.sh
 ```
 
-### Decoding
+### Evaluation
+
+After training, evaluate the model for BLEU score and time with:
+
+```
+../sockeye-wnmt18/wnmt18/eval.sh
+```
+
+Edit the script as needed to match the model and select CPU or GPU benchmarking.
+
+### Packaging
+
+To package a model for the official evaluation (see [Procedure](https://sites.google.com/site/wnmt18/shared-task) section), run the package script with your selected model, team name, and system name.  For instance:
+
+```
+../sockeye-wnmt18/wnmt18/package.sh model.baseline sockeye-team sockeye-baseline
+```
+

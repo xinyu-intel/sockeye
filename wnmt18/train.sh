@@ -1,27 +1,28 @@
 #!/usr/bin/env bash
 
-# Run training on GPUs
-DOCKER_RUN="nvidia-docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:gpu-latest"
+# For contrastive training runs, copy and modify this script, including changing
+# the model name:
+MODEL="model.baseline"
 
-# Change this for contrastive training runs
-MODEL_OUT="model.baseline"
-
-# Change based on your environment
+# Change based on your environment, recommended: -1, -2, or -4
 # Negative indicates "attempt to lock this many GPUs"
 NUM_GPUS="-1"
 
-# Run Sockeye training with settings from https://arxiv.org/abs/1712.05690
-$DOCKER_RUN python3 -m sockeye.train \
+# Run training on GPUs
+DOCKER_RUN="nvidia-docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
+
+# Run Sockeye training with settings similar to https://arxiv.org/abs/1712.05690
+${DOCKER_RUN} python3 -m sockeye.train \
   -s data/train.en.bpe \
   -t data/train.de.bpe \
   -vs data/newstest2013.en.bpe \
   -vt data/newstest2013.de.bpe \
-  -o $MODEL_OUT \
+  -o ${MODEL} \
   --seed=1 \
   --batch-type=word \
-  --batch-size=8192 \
-  --checkpoint-frequency=4000 \
-  --device-ids=$NUM_GPUS \
+  --batch-size=4096 \
+  --checkpoint-frequency=2000 \
+  --device-ids=${NUM_GPUS} \
   --embed-dropout=0:0 \
   --encoder=transformer \
   --decoder=transformer \
@@ -64,9 +65,23 @@ $DOCKER_RUN python3 -m sockeye.train \
   --use-tensorboard
 
 # Average parameters from the best checkpoints
-mv $MODEL_OUT/params.best $MODEL_OUT/params.single.best
-$DOCKER_RUN python3 -m sockeye.average \
+cp ${MODEL}/params.best ${MODEL}/params.single.best
+${DOCKER_RUN} python3 -m sockeye.average \
   -n 8 \
-  --output $MODEL_OUT/params.best \
+  --output ${MODEL}/params.best \
   --strategy best \
-  $model
+  ${MODEL}
+
+# Generate Top-K lexicon for vocabulary selection
+${DOCKER_RUN} python3 -m sockeye.lexicon \
+  -m ${MODEL} \
+  -i lex_table \
+  -o ${MODEL}/top_k_lexicon \
+  -k 200
+
+# Copy BPE codes for sub-word encoding
+cp codes ${MODEL}/codes
+
+# Cleanup
+rm ${MODEL}/decode.output.*
+rm ${MODEL}/params.0*

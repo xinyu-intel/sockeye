@@ -2,12 +2,7 @@
 # CUDA for top performance on GPUs.
 
 # Nvidia's pre-built Ubuntu image with CUDA
-FROM nvidia/cuda:9.1-cudnn7-devel-ubuntu16.04
-
-# CUDA stubs to support use with vanilla docker when not using GPU functionality
-RUN cd /usr/local/cuda/lib64/stubs && \
-    ln -s libcuda.so libcuda.so.1
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/cuda/lib64/stubs
+FROM nvidia/cuda:9.0-cudnn7-devel-ubuntu16.04
 
 # UTF-8 default encoding
 RUN apt-get update && apt-get install -y locales
@@ -45,7 +40,7 @@ ENV PKG_CONFIG_PATH ${PKG_CONFIG_PATH}:/opt/intel/intelpython3/lib/pkgconfig
 ENV LD_LIBRARY_PATH $${LD_LIBRARY_PATH}:/opt/intel/intelpython3/lib
 
 # MXNet Python package with CUDA
-RUN pip install mxnet-cu91==1.1.0
+RUN pip install mxnet-cu90==1.1.0
 
 # Additional Sockeye Python dependencies
 RUN pip install \
