@@ -15,14 +15,15 @@ mkdir -p results
 
 for DEVICE in ${@}; do
   # Choose optimal settings for CPU or GPU
+  # Change args here to affect both eval and run scripts
   if [[ ${DEVICE} == "cpu" ]]; then
-    DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-cpu"
+    DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v ${MODEL}:/model -v $(pwd):/work -w /work sockeye:latest-cpu"
     DEVICE_ARGS="--use-cpu"
     BATCH_SIZE=1
     CHUNK_SIZE=1
-    RESTRICT_ARGS="--restrict-lexicon=${MODEL}/top_k_lexicon"
+    RESTRICT_ARGS="--restrict-lexicon=/model/top_k_lexicon"
   elif [[ ${DEVICE} == "gpu" ]]; then
-    DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v $(pwd):/work -w /work sockeye:latest-gpu"
+    DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v ${MODEL}:/model -v $(pwd):/work -w /work sockeye:latest-gpu"
     DEVICE_ARGS=""
     BATCH_SIZE=32
     CHUNK_SIZE=1000
@@ -30,25 +31,30 @@ for DEVICE in ${@}; do
   else
     continue
   fi
+  # Create translate command and WNMT18 run script
+  # Change args here to affect both eval and run scripts
+  TRANSLATE="python3 -m sockeye.translate \
+--models=/model \
+--beam-size=5 \
+--batch-size=${BATCH_SIZE} \
+--chunk-size=${CHUNK_SIZE} \
+--length-penalty-alpha=0.1 \
+--length-penalty-beta=0.0 \
+--max-output-length-num-stds=2 \
+--bucket-width=10 \
+${DEVICE_ARGS} \
+${RESTRICT_ARGS}"
+  echo "zcat -f \$1 |apply_bpe.py -c /model/codes |${TRANSLATE} |sed -u -r 's/@@( |\$)//g' >\$2" \
+    >results/${MODEL}.${RUN}.${DEVICE}.run.sh
   # Decode both test sets
   for SET in newstest2014 newstest2015; do
     # BPE encode -> decode -> BPE join
-    time cat data/${SET}.en \
-      |${DOCKER_RUN} apply_bpe.py -c codes \
-      |${DOCKER_RUN} python3 -m sockeye.translate \
-        --models=${MODEL} \
-        --beam-size=5 \
-        --batch-size=${BATCH_SIZE} \
-        --chunk-size=${CHUNK_SIZE} \
-        --length-penalty-alpha=0.1 \
-        --length-penalty-beta=0.0 \
-        --max-output-length-num-stds=2 \
-        --bucket-width=10 \
-        ${DEVICE_ARGS} \
-        ${RESTRICT_ARGS} \
+    zcat -f data/${SET}.en \
+      |${DOCKER_RUN} apply_bpe.py -c /model/codes \
+      |${DOCKER_RUN} ${TRANSLATE} \
+        2> >(tee -a results/${SET}.${MODEL}.${RUN}.${DEVICE}.log >&2) \
       |sed -u -r 's/@@( |$)//g' \
-      >results/${SET}.${MODEL}.${RUN}.${DEVICE} \
-      2>results/${SET}.${MODEL}.${RUN}.${DEVICE}.time
+      >results/${SET}.${MODEL}.${RUN}.${DEVICE}
     # Evaluate
     ${DOCKER_RUN} python3 -m sockeye.evaluate \
       --hypotheses=results/${SET}.${MODEL}.${RUN}.${DEVICE} \

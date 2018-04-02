@@ -113,15 +113,16 @@ Results are written out to the "results" directory, for example:
 ```
 results/newstest2014.baseline.default.gpu
 results/newstest2014.baseline.default.gpu.bleu
-results/newstest2014.baseline.default.gpu.time
+results/newstest2014.baseline.default.gpu.log
 ...
 ```
 
 ### Packaging
 
-To package a model for the official evaluation (see [Procedure](https://sites.google.com/site/wnmt18/shared-task) section), run the package script with your selected model, team name, and system name.  For instance:
+To package a model for the official evaluation (see [Procedure](https://sites.google.com/site/wnmt18/shared-task) section), run the package script with your selected image, model, run script, team name, and system name.  For instance:
 
 ```
-../sockeye-wnmt18/wnmt18/package.sh model.baseline sockeye-team sockeye-baseline
+../sockeye-wnmt18/wnmt18/package.sh sockeye:latest-cpu baseline results/baseline.default.cpu.run.sh my-team baseline
 ```
 
+**IMPORTANT**: "latest" is a shortcut that always refers to the most recently built Sockeye image.  If your model ran with a different Sockeye image (or you aren't sure), check the decode log to find the commit of Sockeye.  Then run `docker images` to find the tag that matches the commit.
