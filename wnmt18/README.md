@@ -108,9 +108,10 @@ After training, evaluate the model for BLEU score and time.  The eval script use
 ../sockeye-wnmt18/wnmt18/eval.sh cpu gpu
 ```
 
-Results are written out to the "results" directory, for example:
+Results are written out to the "results" directory, including a "run" script that can be used for packaging.  For example:
 
 ```
+results/baseline.default.gpu.run.sh
 results/newstest2014.baseline.default.gpu
 results/newstest2014.baseline.default.gpu.bleu
 results/newstest2014.baseline.default.gpu.log
