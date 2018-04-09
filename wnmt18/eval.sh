@@ -17,13 +17,13 @@ for DEVICE in ${@}; do
   # Choose optimal settings for CPU or GPU
   # Change args here to affect both eval and run scripts
   if [[ ${DEVICE} == "cpu" ]]; then
-    DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v ${MODEL}:/model -v $(pwd):/work -w /work sockeye:latest-cpu"
+    DOCKER_RUN="docker run --init --rm -i -u $(id -u):$(id -g) -v $(readlink -f ${MODEL}):/model -v $(pwd):/work -w /work sockeye:latest-cpu"
     DEVICE_ARGS="--use-cpu"
     BATCH_SIZE=1
     CHUNK_SIZE=1
     RESTRICT_ARGS="--restrict-lexicon=/model/top_k_lexicon"
   elif [[ ${DEVICE} == "gpu" ]]; then
-    DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v ${MODEL}:/model -v $(pwd):/work -w /work sockeye:latest-gpu"
+    DOCKER_RUN="docker run --runtime=nvidia --init --rm -i -u $(id -u):$(id -g) -v $(readlink -f ${MODEL}):/model -v $(pwd):/work -w /work sockeye:latest-gpu"
     DEVICE_ARGS=""
     BATCH_SIZE=32
     CHUNK_SIZE=1000
@@ -55,11 +55,11 @@ ${RESTRICT_ARGS}"
         2> >(tee -a results/${SET}.${MODEL}.${RUN}.${DEVICE}.log >&2) \
       |sed -u -r 's/@@( |$)//g' \
       >results/${SET}.${MODEL}.${RUN}.${DEVICE}
-    # Evaluate
-    ${DOCKER_RUN} python3 -m sockeye.evaluate \
-      --hypotheses=results/${SET}.${MODEL}.${RUN}.${DEVICE} \
-      --references=data/${SET}.de \
-      --metrics=bleu \
-      >results/${SET}.${MODEL}.${RUN}.${DEVICE}.bleu
+    # Run MultEval
+    ${DOCKER_RUN} multeval.sh eval \
+      --hyps-baseline results/${SET}.${MODEL}.${RUN}.${DEVICE} \
+      --refs data/${SET}.de \
+      --meteor.language de \
+      >results/${SET}.${MODEL}.${RUN}.${DEVICE}.scores
   done
 done

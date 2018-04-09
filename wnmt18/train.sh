@@ -72,7 +72,7 @@ ${DOCKER_RUN} python3 -m sockeye.average \
   --strategy=best \
   ${MODEL}
 rm ${MODEL}/params.best
-ln -s ${MODEL}/params.average.best ${MODEL}/params.best
+ln -s params.average.best ${MODEL}/params.best
 
 # Generate Top-K lexicon for vocabulary selection
 ${DOCKER_RUN} python3 -m sockeye.lexicon \

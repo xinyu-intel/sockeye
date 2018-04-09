@@ -13,12 +13,15 @@ ENV LC_ALL en_US.UTF-8
 
 # System packages
 RUN apt-get update && apt-get install -y \
+    ant \
     cmake \
     cpio \
+    curl \
     git \
     libgoogle-perftools-dev \
     libsparsehash-dev \
     libunwind-dev \
+    openjdk-9-jdk-headless \
     pkg-config \
     wget
 
@@ -89,6 +92,17 @@ RUN cd /opt && \
     cmake .. && \
     make -j
 ENV PATH ${PATH}:/opt/fast_align/build
+
+# MultEval
+ENV MULTEVAL_VERSION bd93ed16197af93dce6ff3273efa04b9cc9d13ce
+RUN cd /opt && \
+    git clone https://github.com/jhclark/multeval.git && \
+    cd multeval && \
+    git checkout ${MULTEVAL_VERSION} && \
+    bash get_deps.sh && \
+    sed -i 's#FileInputStream("constants")#FileInputStream("/opt/multeval/constants")#g' src/multeval/MultEval.java && \
+    ant
+ENV PATH ${PATH}:/opt/multeval
 
 # This revision of Sockeye
 ARG REV

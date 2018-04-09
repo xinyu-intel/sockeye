@@ -51,7 +51,7 @@ docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi
 
 ## Sockeye Docker Image
 
-**IMPORTANT**: These images use Intel's Python and Math Kernel Library distributions.  Read over the license [here](https://software.intel.com/en-us/license/intel-simplified-software-license) and see the FAQ [here](https://software.intel.com/en-us/mkl/license-faq) before using.
+**IMPORTANT**: These images use Intel's Python and Math Kernel Library distributions.  Read the license [here](https://software.intel.com/en-us/license/intel-simplified-software-license) and see the FAQ [here](https://software.intel.com/en-us/mkl/license-faq).
 
 To build a Docker image containing Sockeye and other necessary software, run the build script from the root of the sockeye directory.  There are currently two builds: one optimized for CPU and one optimized for GPU.  You can specify "cpu", "gpu", or both:
 
@@ -59,7 +59,7 @@ To build a Docker image containing Sockeye and other necessary software, run the
 ./docker/build.sh cpu gpu
 ```
 
-**IMPORTANT**: If you update the Sockeye code, commit the changes to your git repository and re-run the build scripts.  Sockeye images are tagged by commit and a change of commit tells the build script to update the Sockeye installation in the Docker image.  The development cycle is: make changes, commit, re-run build script, run experiments.
+**IMPORTANT**: If you update the Sockeye code, commit the changes to your git repository and re-run the build scripts.  Sockeye images are tagged by commit and a change of commit tells the build script to update the Sockeye installation in the Docker image.  The development cycle is: make changes -> commit -> re-run build script -> run experiments.
 
 ## Training Pipeline
 
@@ -102,18 +102,25 @@ The training script uses Sockeye to learn a transformer model with settings simi
 
 ### Evaluation
 
-After training, evaluate the model for BLEU score and time.  The eval script uses good default decoding settings for CPU and GPU.  **Copy and modify the script as needed to run multiple experiments with different decoding settings.**  Call the script with "cpu", "gpu", or both to run an evaluation:
+After training, evaluate the model on metric scores and time.  The eval script uses good default decoding settings for CPU and GPU.  **Copy and modify the script as needed to run multiple experiments with different decoding settings.**  Call the script with "cpu", "gpu", or both to run an evaluation:
 
 ```
 ../sockeye-wnmt18/wnmt18/eval.sh cpu gpu
 ```
 
-Results are written out to the "results" directory, including a "run" script that can be used for packaging.  For example:
+Outputs are written out to the "results" directory, including:
+
+- The "run" script that can be used for packaging
+- Word-tokenized translations
+- BLEU, Meteor, and TER scores from [MultEval](https://github.com/jhclark/multeval)
+- The log file that ends with timing information
+
+For example:
 
 ```
 results/baseline.default.gpu.run.sh
 results/newstest2014.baseline.default.gpu
-results/newstest2014.baseline.default.gpu.bleu
+results/newstest2014.baseline.default.gpu.scores
 results/newstest2014.baseline.default.gpu.log
 ...
 ```
