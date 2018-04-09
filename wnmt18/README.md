@@ -63,6 +63,8 @@ To build a Docker image containing Sockeye and other necessary software, run the
 
 ## Training Pipeline
 
+**Pre-generated results of the Data, Model Training, and Evaluation steps for the baseline system can be downloaded [here](https://drive.google.com/file/d/1ZVYgR7GuumlbenF-r093RhhB12YWZzlN/view?usp=sharing).**
+
 This task uses pre-processed training data so the pipeline consists of only a few steps.  Start by creating a work directory outside of the Sockeye directory.
 
 ```
