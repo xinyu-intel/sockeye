@@ -136,3 +136,17 @@ To package a model for the official evaluation (see [Procedure](https://sites.go
 ```
 
 **IMPORTANT**: "latest" is a shortcut that always refers to the most recently built Sockeye image.  If your model ran with a different Sockeye image (or you aren't sure), check the decode log to find the commit of Sockeye.  Then run `docker images` to find the tag that matches the commit.
+
+## Baseline Results
+
+Running the above steps will yield results similar to the following (p3.8xlarge instance):
+
+|                 |BLEU|Decode Time (sec)|
+|-----------------|---:|----------------:|
+|Newstest 2014 GPU|27.6|           231.85|
+|Newstest 2014 CPU|27.4|          1168.59|
+|Newstest 2015 GPU|29.7|           183.92|
+|Newstest 2015 CPU|29.8|           895.33|
+
+
+See the link earlier in this document for downloading pre-generated baseline models and the above evaluation results.
