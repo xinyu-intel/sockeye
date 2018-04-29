@@ -881,6 +881,7 @@ class Translator:
     :param restrict_lexicon: Top-k lexicon to use for target vocabulary restriction.
     :param store_beam: If True, store the beam search history and return it in the TranslatorOutput.
     :param strip_unknown_words: If True, removes any <unk> symbols from outputs.
+    :param timeout: Maximum runtime allowed for beam search in seconds. Default: None.
     """
 
     def __init__(self,
@@ -893,7 +894,8 @@ class Translator:
                  target_vocab: vocab.Vocab,
                  restrict_lexicon: Optional[lexicon.TopKLexicon] = None,
                  store_beam: bool = False,
-                 strip_unknown_words: bool = False) -> None:
+                 strip_unknown_words: bool = False,
+                 timeout: Optional[float] = None) -> None:
         self.context = context
         self.length_penalty = length_penalty
         self.source_vocabs = source_vocabs
@@ -907,6 +909,7 @@ class Translator:
         self.strip_ids = self.stop_ids.copy()  # ids to strip from the output
         if strip_unknown_words:
             self.strip_ids.add(self.vocab_target[C.UNK_SYMBOL])
+        self.timeout = timeout
         self.models = models
         self.interpolation_func = self._get_interpolation_func(ensemble_mode)
         self.beam_size = self.models[0].beam_size
@@ -1186,6 +1189,7 @@ class Translator:
         :return List of lists of word ids, list of attentions, array of accumulated length-normalized
                 negative log-probs.
         """
+        start_time = time.time()
         # Length of encoded sequence (may differ from initial input length)
         encoded_source_length = self.models[0].encoder.get_encoded_seq_len(source_length)
         utils.check_condition(all(encoded_source_length ==
@@ -1264,6 +1268,10 @@ class Translator:
         # (0) encode source sentence, returns a list
         model_states = self._encode(source, source_length)
 
+        if self.timeout is not None and time.time() > start_time + self.timeout:
+            logger.warning("Beam search timed out after initialization (>%.2fs)", self.timeout)
+            return sequences, attentions, scores_accumulated, lengths, beam_histories
+
         for t in range(1, max_output_length):
 
             # (1) obtain next predictions and advance models' state
@@ -1337,6 +1345,11 @@ class Translator:
             # (8) update models' state with winning hypotheses (ascending)
             for ms in model_states:
                 ms.sort_state(best_hyp_indices)
+
+            # (9) check for timeout
+            if self.timeout is not None and time.time() > start_time + self.timeout:
+                logger.warning("Beam search timed out after step %d (>%.2fs)", t, self.timeout)
+                return sequences, attentions, scores_accumulated, lengths, beam_histories
 
         return sequences, attentions, scores_accumulated, lengths, beam_histories
 

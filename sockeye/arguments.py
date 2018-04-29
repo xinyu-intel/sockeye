@@ -1067,6 +1067,11 @@ def add_inference_args(params):
                                type=float,
                                help='Beta factor for the length penalty used in beam search: '
                                     '(beta + len(Y))**alpha/(beta + 1)**alpha. Default: %(default)s')
+    decode_params.add_argument('--timeout',
+                               default=None,
+                               type=float,
+                               help='Maximum time for beam search. If exceeded, beam search is interrupted '
+                                    'and the current results is returned. Default: %(default)s.')
 
 
 def add_evaluate_args(params):
