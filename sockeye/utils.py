@@ -269,6 +269,7 @@ def topk(scores: mx.nd.NDArray,
     # (batch_size, beam_size * target_vocab_size)
     folded_scores = scores.reshape((batch_size, k * scores.shape[-1]))
 
+    use_mxnet_topk = True
     if use_mxnet_topk:
         # pylint: disable=unbalanced-tuple-unpacking
         values, indices = mx.nd.topk(folded_scores, axis=1, k=k, ret_typ='both', is_ascend=True)
